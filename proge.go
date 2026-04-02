@@ -16,6 +16,8 @@ import (
 
 const baseDomain = "ba.tilhempel.info"
 const randMax = 100000
+const timeout = 10 * time.Second
+const rounds = 100
 
 func domainAssembly(dnsServer string, tokenDepth int) string {
 	octets := strings.Split(dnsServer, ".")
@@ -55,6 +57,7 @@ func dnsQuery(domain string, server string, qType uint16) ([]string, error) {
 
 	c := new(dns.Client)
 	c.Net = "udp"
+	c.Timeout = timeout
 	res, _, err := c.Exchange(m, server+":53")
 	if err != nil {
 		return nil, fmt.Errorf("Querry failed: %v", err)
@@ -103,10 +106,10 @@ func scanResolvers(resolver []string) map[string][]string {
 		ch := make(chan []string)
 		var wg sync.WaitGroup
 
-		for i := 0; i < 100; i++ {
+		for i := 0; i < rounds; i++ {
 			wg.Add(1)
 			go dnsQueryRoutine(24, ip, dns.TypeTXT, ch, &wg)
-			time.Sleep(time.Duration(time.Duration.Milliseconds(10)))
+			time.Sleep(20 * time.Millisecond)
 		}
 
 		go func() {
@@ -205,8 +208,8 @@ func readCSV(path string) []string {
 
 func main() {
 	start := time.Now()
-	server := readCSV("/home/Til/Downloads/apidownload/data/odns_udp_2026-03-31.csv")
-	server = server[100:115]
+	server := readCSV("")
+	server = server[400:430]
 
 	results := scanResolvers(server)
 	writeOutputCSV(evalRsults(results))
