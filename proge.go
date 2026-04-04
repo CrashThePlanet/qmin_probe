@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,7 +17,7 @@ import (
 
 const baseDomain = "ba.tilhempel.info"
 const randMax = 100000
-const timeout = 10 * time.Second
+const timeout = 2 * time.Second
 const rounds = 100
 
 func domainAssembly(dnsServer string, tokenDepth int) string {
@@ -60,7 +61,7 @@ func dnsQuery(domain string, server string, qType uint16) ([]string, error) {
 	c.Timeout = timeout
 	res, _, err := c.Exchange(m, server+":53")
 	if err != nil {
-		return nil, fmt.Errorf("Querry failed: %v", err)
+		return []string{"querry error"}, fmt.Errorf("Querry failed: %v", err)
 	}
 
 	if res.Rcode != dns.RcodeSuccess {
@@ -79,7 +80,7 @@ func dnsQuery(domain string, server string, qType uint16) ([]string, error) {
 			}
 		case dns.TypeTXT:
 			if txt, ok := ans.(*dns.TXT); ok {
-				results = append(results, txt.Txt...)
+				results = txt.Txt
 			}
 		}
 	}
@@ -92,7 +93,6 @@ func dnsQueryRoutine(tokenDepth int, server string, qType uint16, ch chan<- []st
 	res, err := dnsQuery(domainAssembly(server, tokenDepth), server, qType)
 	if err != nil {
 		fmt.Println("A record error:", err)
-		return err
 	}
 	ch <- res
 	return res
@@ -117,7 +117,11 @@ func scanResolvers(resolver []string) map[string][]string {
 			close(ch)
 		}()
 
-		out[ip] = <-ch
+		for t := range ch {
+			if len(t) > 0 {
+				out[ip] = slices.Insert(out[ip], 0, t[0])
+			}
+		}
 	}
 	return out
 }
@@ -135,7 +139,6 @@ func evalRsults(raw map[string][]string) map[string][3]string {
 		mostFreq := kvPair{"", 0}
 
 		for _, seq := range v {
-
 			if strings.Contains(seq, "|") {
 				switch qmin {
 				case 0:
@@ -144,7 +147,7 @@ func evalRsults(raw map[string][]string) map[string][3]string {
 					qmin = 1
 				}
 				seq = seq[:strings.LastIndex(seq, "|")+1]
-			} else {
+			} else if strings.Contains(seq, ".") {
 				switch qmin {
 				case 1:
 					qmin = 2
@@ -208,8 +211,9 @@ func readCSV(path string) []string {
 
 func main() {
 	start := time.Now()
-	server := readCSV("")
-	server = server[400:430]
+	// server := readCSV("/home/Til/Downloads/apidownload/data/odns_udp_2026-03-31.csv")
+	// server = server[400:430]
+	server := []string{"9.9.9.9", "1.1.1.1", "8.8.8.8", "46.226.143.86"}
 
 	results := scanResolvers(server)
 	writeOutputCSV(evalRsults(results))
