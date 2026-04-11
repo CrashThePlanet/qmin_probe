@@ -116,12 +116,17 @@ func dnsQuery(domain string, server string, qType uint16, timeout time.Duration)
 	return QueryResult{Ip: server, status: 0, Res: res.Answer[0].(*dns.TXT).Txt[0]}
 }
 
-func dnsQueryRoutine(tokenDepth int, server string, timeout time.Duration, qType uint16, ch chan<- QueryResult, wg *sync.WaitGroup) {
+func dnsQueryRoutine(tokenDepth int, server string, timeout time.Duration, retryTimeout time.Duration, qType uint16, ch chan<- QueryResult, wg *sync.WaitGroup) {
 	defer wg.Done()
-	ch <- dnsQuery(domainAssembly(server, tokenDepth), server, qType, timeout)
+	requestedDomain := domainAssembly(server, tokenDepth)
+	res := dnsQuery(requestedDomain, server, qType, timeout)
+	if res.status == 3 {
+		res = dnsQuery(requestedDomain, server, qType, retryTimeout)
+	}
+	ch <- res
 }
 
-func scanResolvers(resolver []string, tokenDepth int, rounds int, batchSize int, timeout time.Duration) map[string][]QueryResult {
+func scanResolvers(resolver []string, tokenDepth int, rounds int, batchSize int, timeout time.Duration, retryTrimeout time.Duration) map[string][]QueryResult {
 	var out = make(map[string][]QueryResult)
 
 	for _, part := range partitionStringSlice(resolver, batchSize) {
@@ -132,7 +137,7 @@ func scanResolvers(resolver []string, tokenDepth int, rounds int, batchSize int,
 
 			for _, ip := range part {
 				wg.Add(1)
-				go dnsQueryRoutine(tokenDepth, ip, timeout, dns.TypeTXT, ch, &wg)
+				go dnsQueryRoutine(tokenDepth, ip, timeout, retryTrimeout, dns.TypeTXT, ch, &wg)
 			}
 			go func() {
 				wg.Wait()
@@ -245,10 +250,11 @@ func readCSV(path string) []string {
 func main() {
 	start := time.Now()
 	server := readCSV("/home/Til/Downloads/apidownload/data/resolver.csv")
-	server = server[:5000]
+	server = server[7000:7050]
 	// server := []string{"9.9.9.9", "1.1.1.1", "8.8.8.8", "46.226.143.86", "34.28.223.99"}
+	// server := []string{"190.181.4.204"}
 
-	responses := scanResolvers(server, 24, 50, 10000, 10*time.Second)
+	responses := scanResolvers(server, 24, 50, 10000, 5*time.Second, 20*time.Second)
 	results := evalRsults(responses)
 	writeOutputCSV(results)
 	fmt.Println("runtime: ", time.Since(start))
