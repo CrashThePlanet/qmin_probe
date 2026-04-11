@@ -16,7 +16,6 @@ import (
 
 const baseDomain = "ba.tilhempel.info"
 const randMax = 100000
-const timeout = 10 * time.Second
 
 type QueryResult struct {
 	Ip     string
@@ -112,8 +111,12 @@ func dnsQuery(domain string, server string, qType uint16, timeout time.Duration)
 		}
 		return QueryResult{Ip: server, status: -1, Res: "no Awnser from Resolver"}
 	}
-
-	return QueryResult{Ip: server, status: 0, Res: res.Answer[0].(*dns.TXT).Txt[0]}
+	if t, ok := res.Answer[0].(*dns.TXT); ok {
+		return QueryResult{Ip: server, status: 0, Res: t.Txt[0]}
+	}
+	// fmt.Println(res.Answer[0])
+	// fmt.Println(res.Extra)
+	return QueryResult{Ip: server, status: -1, Res: "Answer doesn't contain TXT response"}
 }
 
 func dnsQueryRoutine(tokenDepth int, server string, timeout time.Duration, retryTimeout time.Duration, qType uint16, ch chan<- QueryResult, wg *sync.WaitGroup) {
@@ -130,6 +133,7 @@ func scanResolvers(resolver []string, tokenDepth int, rounds int, batchSize int,
 	var out = make(map[string][]QueryResult)
 
 	for _, part := range partitionStringSlice(resolver, batchSize) {
+		fmt.Println(len(part))
 		for i := 0; i < rounds; i++ {
 			fmt.Println("round", i+1, "/", rounds)
 			ch := make(chan QueryResult)
@@ -250,7 +254,7 @@ func readCSV(path string) []string {
 func main() {
 	start := time.Now()
 	server := readCSV("/home/Til/Downloads/apidownload/data/resolver.csv")
-	server = server[7000:7050]
+	// server = server[7000:7050]
 	// server := []string{"9.9.9.9", "1.1.1.1", "8.8.8.8", "46.226.143.86", "34.28.223.99"}
 	// server := []string{"190.181.4.204"}
 
