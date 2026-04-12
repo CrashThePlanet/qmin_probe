@@ -266,7 +266,7 @@ func main() {
 	const timeout = 5 * time.Second
 	const retryTimeout = 20 * time.Second
 
-	fmt.Println("ETA:", (batchSize * retryTimeout).String())
+	fmt.Println("ETA:", (rounds * retryTimeout).String())
 
 	responses := scanResolvers(server, depth, rounds, batchSize, timeout, retryTimeout)
 	results := evalRsults(responses)
