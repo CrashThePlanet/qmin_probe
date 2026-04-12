@@ -132,8 +132,10 @@ func dnsQueryRoutine(tokenDepth int, server string, timeout time.Duration, retry
 func scanResolvers(resolver []string, tokenDepth int, rounds int, batchSize int, timeout time.Duration, retryTrimeout time.Duration) map[string][]QueryResult {
 	var out = make(map[string][]QueryResult)
 
-	for _, part := range partitionStringSlice(resolver, batchSize) {
-		fmt.Println(len(part))
+	parts := partitionStringSlice(resolver, batchSize)
+
+	for i, part := range parts {
+		fmt.Println("part", i+1, "/", len(parts))
 		for i := 0; i < rounds; i++ {
 			fmt.Println("round", i+1, "/", rounds)
 			ch := make(chan QueryResult)
@@ -258,7 +260,15 @@ func main() {
 	// server := []string{"9.9.9.9", "1.1.1.1", "8.8.8.8", "46.226.143.86", "34.28.223.99"}
 	// server := []string{"190.181.4.204"}
 
-	responses := scanResolvers(server, 24, 50, 10000, 5*time.Second, 20*time.Second)
+	const depth = 24
+	const batchSize = 5000
+	const rounds = 50
+	const timeout = 5 * time.Second
+	const retryTimeout = 20 * time.Second
+
+	fmt.Println("ETA:", (batchSize * retryTimeout).String())
+
+	responses := scanResolvers(server, depth, rounds, batchSize, timeout, retryTimeout)
 	results := evalRsults(responses)
 	writeOutputCSV(results)
 	fmt.Println("runtime: ", time.Since(start))
